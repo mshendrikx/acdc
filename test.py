@@ -26,7 +26,7 @@ REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL"))  # Seconds between re
 WHATSAPP_BASE_URL = os.environ.get("WHATSAPP_BASE_URL")
 WHATSAPP_API_KEY = os.environ.get("WHATSAPP_API_KEY")
 WHATSAPP_SESSION = os.environ.get("WHATSAPP_SESSION")
-CELL_PHONE = os.environ.get("CELL_PHONE")
+CELL_PHONE = [os.environ.get("CELL_PHONE")]
   
 def main():
 
