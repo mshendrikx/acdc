@@ -2,9 +2,11 @@ import time
 import logging
 import os
 
-from seleniumbase import webdriver
+from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from seleniumbase import Driver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from whatsapp_api import whatsapp_send_message
 from dotenv import load_dotenv
 
@@ -56,11 +58,17 @@ def main():
             driver.get(TARGET_URL)       
             
             try:
-                search_element = driver.wait_for_element(search_xpath, timeout=10)
+                search_element = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.XPATH, search_xpath))
+                )
                 time.sleep(2)  # Wait for the element to be fully interactable
-                if 'esgotado' in search_element.text.lower():
+                
+                if 'esgotado1' in search_element.text.lower():
                     logging.info(f"No tickets available")
+                    # Wait for the next refresh
+                    time.sleep(REFRESH_INTERVAL)
                     continue
+                
                 send_fail = whatsapp_send_message(
                     base_url=WHATSAPP_BASE_URL,
                     api_key=WHATSAPP_API_KEY,
@@ -73,6 +81,8 @@ def main():
                     logging.info("Message sent successfully to all contacts")
                     break
                 else:
+                    # Wait for the next refresh
+                    time.sleep(REFRESH_INTERVAL)
                     continue
                 
             except Exception as e:
@@ -83,11 +93,7 @@ def main():
             logging.error(f"Fatal error: {str(e)}")                
                 
         # Refresh the page
-        logging.info("Page refreshed successfully")
-
-        # Wait for the next refresh
-        time.sleep(REFRESH_INTERVAL)
-            
+        logging.info("Page refreshed successfully")            
 
 if __name__ == "__main__":
     main()

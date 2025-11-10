@@ -39,8 +39,7 @@ def main():
     logging.info(f"Target URL: {TARGET_URL}")
     logging.info("Press Ctrl+C to stop the script")
     
-    while 1 == 1:
-        
+    while 1 == 1:        
 
         try:
             # Navigate to target page after successful login
@@ -51,6 +50,8 @@ def main():
                 time.sleep(2)  # Wait for the element to be fully interactable
                 if 'esgotado' in search_element.text.lower():
                     logging.info(f"No tickets available")
+                    # Wait for the next refresh
+                    time.sleep(REFRESH_INTERVAL)
                     continue
                 send_fail = whatsapp_send_message(
                     base_url=WHATSAPP_BASE_URL,
@@ -64,6 +65,8 @@ def main():
                     logging.info("Message sent successfully to all contacts")
                     break
                 else:
+                    # Wait for the next refresh
+                    time.sleep(REFRESH_INTERVAL)
                     continue
                 
             except Exception as e:
@@ -74,11 +77,7 @@ def main():
             logging.error(f"Fatal error: {str(e)}")                
                 
         # Refresh the page
-        logging.info("Page refreshed successfully")
-
-        # Wait for the next refresh
-        time.sleep(REFRESH_INTERVAL)
-            
+        logging.info("Page refreshed successfully")            
 
 if __name__ == "__main__":
     main()
