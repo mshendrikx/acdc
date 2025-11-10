@@ -1,0 +1,273 @@
+import time
+import logging
+import os
+
+from seleniumbase import Driver
+from whatsapp_api import whatsapp_send_message
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Configuration
+
+TARGET_URL = "https://www.ticketmaster.com.br/event/venda-geral-acdc-28-02"  # Change to your target page after login
+REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL"))  # Seconds between refreshes
+WHATSAPP_BASE_URL = os.environ.get("WHATSAPP_BASE_URL")
+WHATSAPP_API_KEY = os.environ.get("WHATSAPP_API_KEY")
+WHATSAPP_SESSION = os.environ.get("WHATSAPP_SESSION")
+CELL_PHONE = os.environ.get("CELL_PHONE")
+  
+def main():
+
+    # Initialize the SeleniumBase Driver
+    options = Options()    
+    options.add_argument("start-maximized")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--lang=en")
+    options.add_argument("--headless")
+    #options.binary_location = '/usr/bin/firefox-nightly'
+    driver = webdriver.Remote(
+        command_executor=hub_url,
+        options=options
+    )
+
+    search_xpath = '//*[@id="picker-bar"]/div/span'
+    logging.info(f"Starting page refresh every {REFRESH_INTERVAL} seconds")
+    logging.info(f"Target URL: {BASE_URL}")
+    logging.info("Press Ctrl+C to stop the script")
+    
+    while 1 == 1:
+        
+
+        try:
+            # Navigate to target page after successful login
+            driver.get(TARGET_URL)       
+            
+            try:
+                search_element = driver.wait_for_element(search_xpath, timeout=10)
+                time.sleep(2)  # Wait for the element to be fully interactable
+                if 'esgotado' in search_element.text.lower():
+                    logging.info(f"No tickets available")
+                    continue
+                send_fail = whatsapp_send_message(
+                    base_url=WHATSAPP_BASE_URL,
+                    api_key=WHATSAPP_API_KEY,
+                    session=WHATSAPP_SESSION,
+                    contacts=CELL_PHONE,
+                    content= f"Tickets available for: {TARGET_URL}",
+                    content_type="string",
+                )
+                if send_fail == []:
+                    logging.info("Message sent successfully to all contacts")
+                    break
+                else:
+                    continue
+                
+            except Exception as e:
+                logging.error(f"Error: {str(e)}")
+        except KeyboardInterrupt:
+            logging.info("\nScript stopped by user")
+        except Exception as e:
+            logging.error(f"Fatal error: {str(e)}")                
+                
+        # Refresh the page
+        logging.info("Page refreshed successfully")
+
+        # Wait for the next refresh
+        time.sleep(REFRESH_INTERVAL)
+            
+
+if __name__ == "__main__":
+    main()
+    
+
+
+
+
+import time
+import logging
+import os
+
+from seleniumbase import webdriver
+from selenium.webdriver.chrome.options import Options
+from seleniumbase import Driver
+from selenium.webdriver.common.by import By
+from whatsapp_api import whatsapp_send_message, whatsapp_restart_session
+from dotenv import load_dotenv
+from datetime import datetime 
+
+from sqlalchemy import create_engine, Column, Integer, String, DateTime
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Configuration
+TARGET_URL = "https://www.ticketmaster.com.br/event/"  # Change to your target page after login
+REFRESH_INTERVAL = int(os.environ.get("REFRESH_INTERVAL"))  # Seconds between refreshes
+WHATSAPP_BASE_URL = os.environ.get("WHATSAPP_BASE_URL")
+WHATSAPP_API_KEY = os.environ.get("WHATSAPP_API_KEY")
+WHATSAPP_SESSION = os.environ.get("WHATSAPP_SESSION")
+DB_URL = os.environ.get("DB_URL", "mariadb+mariadbconnector://user:password@localhost/kmv")
+
+# Connect to MySQL server (without specifying database)
+db_user = os.environ.get("DB_USERNAME")
+db_pass = os.environ.get("DB_PASSWORD")
+db_host = os.environ.get("DB_HOST")
+db_port = os.environ.get("DB_PORT")
+db_name = os.environ.get("DB_DATABASE")
+db_url = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
+
+# SQLAlchemy setup
+Base = declarative_base()
+
+class Search(Base):
+    __tablename__ = 'searches'
+    id = Column(Integer, primary_key=True)
+    team = Column(String(255))
+    text = Column(String(255))
+    cell_phone = Column(String(255))
+    final_date = Column(DateTime)
+
+engine = create_engine(db_url)
+Base.metadata.create_all(engine)
+SessionLocal = sessionmaker(bind=engine)
+   
+def get_searches_db():
+    session = SessionLocal()
+    searches = []
+    try:
+        results = session.query(Search).all()
+        for s in results:
+            if s.final_date < datetime.now():
+                session.delete(s)
+                continue
+            else:
+                searches.append([s.id, s.team, s.text, s.cell_phone])
+    except Exception as e:
+        logging.error(f"Error reading DB: {str(e)}")
+    finally:
+        session.close()
+    return searches
+
+def main():
+
+    # Initialize the SeleniumBase Driver
+    hub_url = "http://localhost:4444/wd/hub"
+    
+    try:       
+        options = Options()    
+        options.add_argument("start-maximized")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--lang=en")
+        options.add_argument("--headless")
+        #options.binary_location = '/usr/bin/firefox-nightly'
+        driver = webdriver.Remote(
+            command_executor=hub_url,
+            options=options
+        )
+    except Exception as e:
+        logging.error(f"Error initializing WebDriver: {str(e)}")
+        return
+
+    search_xpath = '/html/body/app-root/div/app-header-container/app-view-header/div/div[2]/input'
+    logging.info(f"Starting page refresh every {REFRESH_INTERVAL} seconds")
+    logging.info(f"Target URL: {TARGET_URL}")
+    logging.info("Press Ctrl+C to stop the script")
+    
+    while 1 == 1:
+        
+        searches = get_searches_db()
+        
+        if not searches:
+            logging.info("No searches found. Waiting for new searches.")
+            time.sleep(60)
+            continue
+       
+        for search in searches:
+            
+            search_id = search[0]
+            search_team = search[1]
+            search_text = search[2]
+            cell_phone = [search[3]]
+
+            try:
+
+                # Navigate to target page after successful login
+                driver.get(TARGET_URL)       
+                
+                try:
+                    search_element = driver.wait_for_element(search_xpath, timeout=10)
+                    time.sleep(2)  # Wait for the element to be fully interactable
+                    search_element.send_keys(search_team)
+                    teams_div = driver.find_elements(".view-match")
+                    for item in teams_div:
+                        if search_text in item.text:
+                            logging.info(f"Found match: {item.text}")
+                            send_fail = whatsapp_send_message(
+                                base_url=WHATSAPP_BASE_URL,
+                                api_key=WHATSAPP_API_KEY,
+                                session=WHATSAPP_SESSION,
+                                contacts=cell_phone,
+                                content=item.screenshot_as_base64,
+                                content_type="MessageMedia",
+                            )
+                            send_fail = whatsapp_send_message(
+                                base_url=WHATSAPP_BASE_URL,
+                                api_key=WHATSAPP_API_KEY,
+                                session=WHATSAPP_SESSION,
+                                contacts=cell_phone,
+                                content=TARGET_URL,
+                                content_type="string",
+                            )
+                            time.sleep(5)
+                            
+                            if send_fail == []:
+                                logging.info("Message sent successfully to all contacts")
+                                session = SessionLocal()
+                                try:
+                                    search_to_delete = session.query(Search).filter(Search.id == search_id).first()
+                                    if search_to_delete:
+                                        session.delete(search_to_delete)
+                                        session.commit()
+                                        logging.info(f"Search ID {search_id} deleted from database")
+                                except Exception as e:
+                                    logging.error(f"Error deleting search ID {search_id}: {str(e)}")                                          
+                                
+                                session.close()
+                            
+                            break
+                    
+                except Exception as e:
+                    logging.error(f"Error: {str(e)}")
+
+            except KeyboardInterrupt:
+                logging.info("\nScript stopped by user")
+
+            except Exception as e:
+                logging.error(f"Fatal error: {str(e)}")                
+                
+        # Refresh the page
+        logging.info("Page refreshed successfully")
+
+        # Wait for the next refresh
+        time.sleep(REFRESH_INTERVAL)
+            
+
+if __name__ == "__main__":
+    main()
