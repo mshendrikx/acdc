@@ -36,7 +36,7 @@ def main():
 
     search_xpath = '//*[@id="picker-bar"]/div/span'
     logging.info(f"Starting page refresh every {REFRESH_INTERVAL} seconds")
-    logging.info(f"Target URL: {BASE_URL}")
+    logging.info(f"Target URL: {TARGET_URL}")
     logging.info("Press Ctrl+C to stop the script")
     
     while 1 == 1:
